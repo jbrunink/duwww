@@ -30,7 +30,6 @@ USER duwww
 EXPOSE 8080
 
 ENV NODE_ENV=production
-ENV DEBUG=*
 
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD [ "node", "src/index.js" ]

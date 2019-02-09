@@ -1,14 +1,17 @@
 const path = require('path')
 
 const express = require('express')
+const morgan = require('morgan')
 
 const app = express()
 app.set('x-powered-by', false)
-app.set('trust proxy', 'loopback')
+app.set('trust proxy', process.env.TRUST_PROXY || 'loopback')
 
 app.on('droppedPrivileges', () => {
   app.set('views', path.resolve(__dirname, '..', 'views'))
   app.set('view engine', 'ejs')
+
+  app.use(morgan('combined'))
 
   const routes = require('./routes')
   app.use('/register', routes.register)
