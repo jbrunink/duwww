@@ -5,18 +5,32 @@ const path = require('path')
 const base62 = require('../base62')
 const mime = require('mime')
 const fs = require('fs-extra')
+const highlightjs = require('highlight.js')
 
 const router = express.Router()
 
 function route (route) {
   if (route === '/') route = ''
-  return `/:id${route}`
+  return `/:id/:syntax?${route}`
 }
 
 function fixedEncodeURIComponent (str) {
   return encodeURIComponent(str).replace(/[!'()*]/gu, (c) => {
     return `%${c.charCodeAt(0).toString(16)}`
   })
+}
+
+function highlightSyntax (syntax, content) {
+  if (syntax === 'auto') {
+    return highlightjs.highlightAuto(
+      content
+    ).value
+  } else {
+    return highlightjs.highlight(
+      syntax,
+      content
+    ).value
+  }
 }
 const idRegExp = /^[A-Za-z0-9]{4}$/u
 const idEmojiRegExp = new RegExp(`^[${base62.base62EmojiTable}]{4}$`, 'u')
@@ -88,6 +102,10 @@ router.get(route('/'), middleware.db, middleware.findUpload, async (req, res, ne
       }
     }
 
+    const isNotBinary = req.upload.isBinary === null || req.upload.isBinary === 0
+
+    debug(`Is binary file? ${!isNotBinary}`)
+
     const options = {
       root: path.join(process.env.UPLOAD_FOLDER, 'finished'),
       dotfiles: 'deny',
@@ -102,14 +120,27 @@ router.get(route('/'), middleware.db, middleware.findUpload, async (req, res, ne
       }
     }
 
-    res.sendFile(req.upload.location, options, (err) => {
-      if (err) {
-        debug(err)
-        next(err)
+    if (typeof req.params.syntax === 'string' && isNotBinary) {
+      const body = highlightSyntax(
+        req.params.syntax,
+        await fs.readFile(path.join(process.env.UPLOAD_FOLDER, 'finished', req.upload.location), 'utf8')
+      )
+      res.render('viewfile', {body: body})
+      debug('Rendered file with syntax highlighter')
+    } else {
+      if (typeof syntaxRequested === 'string') {
+        res.status(500).end('Syntax highlighter requested but file is binary.')
       } else {
-        debug('File has been served.')
+        res.sendFile(req.upload.location, options, (err) => {
+          if (err) {
+            debug(err)
+            next(err)
+          } else {
+            debug('File has been served.')
+          }
+        })
       }
-    })
+    }
   } catch (e) {
     next(e)
   }
